@@ -1,14 +1,19 @@
-package com.example.jarvis                                                                            │
+│  package com.example.jarvis                                                                            │
 │                                                                                                        │
 │  import android.Manifest                                                                               │
-│  import android.app.Activity                                                                           │
 │  import android.content.Intent                                                                         │
 │  import android.content.pm.PackageManager                                                              │
 │  import android.net.Uri                                                                                │
+│  import android.os.Build                                                                               │
 │  import android.os.Bundle                                                                              │
+│  import android.speech.RecognitionListener                                                             │
 │  import android.speech.RecognizerIntent                                                                │
+│  import android.speech.SpeechRecognizer                                                                │
 │  import android.speech.tts.TextToSpeech                                                                │
+│  import android.telephony.SmsManager                                                                   │
+│  import android.view.Gravity                                                                           │
 │  import android.widget.Button                                                                          │
+│  import android.widget.LinearLayout                                                                    │
 │  import android.widget.TextView                                                                        │
 │  import androidx.appcompat.app.AppCompatActivity                                                       │
 │  import androidx.core.app.ActivityCompat                                                               │
@@ -20,168 +25,163 @@ package com.example.jarvis                                                      
 │  class MainActivity : AppCompatActivity() {                                                            │
 │                                                                                                        │
 │      private lateinit var tts: TextToSpeech                                                            │
-│      private lateinit var tv: TextView                                                                 │
-│      private val REQ_VOICE = 100                                                                       │
-│      private val REQ_MIC = 200                                                                         │
+│      private lateinit var recognizer: SpeechRecognizer                                                 │
+│      private lateinit var statusText: TextView                                                         │
+│      private var ttsReady = false                                                                      │
+│      private var emotion = "neutral"                                                                   │
 │                                                                                                        │
 │      override fun onCreate(savedInstanceState: Bundle?) {                                              │
 │          super.onCreate(savedInstanceState)                                                            │
-│          setContentView(R.layout.activity_main)                                                        │
 │                                                                                                        │
-│          tv = findViewById(R.id.tv)                                                                    │
-│          val btn = findViewById<Button>(R.id.btn)                                                      │
+│          statusText = TextView(this).apply {                                                           │
+│              textSize = 22f                                                                            │
+│              setPadding(48, 140, 48, 48)                                                               │
+│              text = "Jarvis ready. Tap the mic and speak."                                             │
+│          }                                                                                             │
+│          val micButton = Button(this).apply {                                                          │
+│              text = "🎤 Speak"                                                                         │
+│              setOnClickListener { startListening() }                                                   │
+│          }                                                                                             │
+│          setContentView(LinearLayout(this).apply {                                                     │
+│              orientation = LinearLayout.VERTICAL                                                       │
+│              gravity = Gravity.CENTER                                                                  │
+│              addView(statusText)                                                                       │
+│              addView(micButton)                                                                        │
+│          })                                                                                            │
+│                                                                                                        │
+│          requestPermissions()                                                                          │
 │                                                                                                        │
 │          tts = TextToSpeech(this) { status ->                                                          │
 │              if (status == TextToSpeech.SUCCESS) {                                                     │
-│                  tts.language = Locale("hi", "IN")                                                     │
-│                  speak("Jarvis ready hai. Bolo kya karna hai?")                                        │
+│                  tts.language = Locale.US          // Hindi voice chahiye to: Locale("hi","IN")        │
+│                  ttsReady = true                                                                       │
+│                  speak("Systems online. Bolo, kya karna hai?")                                         │
 │              }                                                                                         │
 │          }                                                                                             │
 │                                                                                                        │
-│          btn.setOnClickListener {                                                                      │
-│              if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)             │
-│                  != PackageManager.PERMISSION_GRANTED                                                  │
-│              ) {                                                                                       │
-│                  ActivityCompat.requestPermissions(                                                    │
-│                      this,                                                                             │
-│                      arrayOf(Manifest.permission.RECORD_AUDIO),                                        │
-│                      REQ_MIC                                                                           │
-│                  )                                                                                     │
-│              } else {                                                                                  │
-│                  listen()                                                                              │
-│              }                                                                                         │
+│          recognizer = SpeechRecognizer.createSpeechRecognizer(this)                                    │
+│          recognizer.setRecognitionListener(listener)                                                   │
+│      }                                                                                                 │
+│                                                                                                        │
+│      private val listener = object : RecognitionListener {                                             │
+│          override fun onReadyForSpeech(params: Bundle?) {}                                             │
+│          override fun onBeginningOfSpeech() { statusText.text = "Listening..." }                       │
+│          override fun onRmsChanged(rmsdB: Float) {}                                                    │
+│          override fun onBufferReceived(buffer: ByteArray?) {}                                          │
+│          override fun onEndOfSpeech() {}                                                               │
+│          override fun onError(error: Int) { statusText.text = "Samajh nahi aaya, phir bolo." }         │
+│          override fun onResults(results: Bundle?) {                                                    │
+│              val cmd = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)               │
+│                  ?.get(0) ?: return                                                                    │
+│              statusText.text = "You: $cmd"                                                             │
+│              handleCommand(cmd)                                                                        │
 │          }                                                                                             │
 │      }                                                                                                 │
 │                                                                                                        │
-│      override fun onRequestPermissionsResult(                                                          │
-│          requestCode: Int,                                                                             │
-│          permissions: Array<out String>,                                                               │
-│          grantResults: IntArray                                                                        │
-│      ) {                                                                                               │
-│          super.onRequestPermissionsResult(requestCode, permissions, grantResults)                      │
-│          if (requestCode == REQ_MIC && grantResults.isNotEmpty()                                       │
-│              && grantResults[0] == PackageManager.PERMISSION_GRANTED                                   │
-│          ) {                                                                                           │
-│              listen()                                                                                  │
-│          }                                                                                             │
-│      }                                                                                                 │
-│                                                                                                        │
-│      private fun listen() {                                                                            │
+│      private fun startListening() {                                                                    │
 │          val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {                         │
-│              putExtra(                                                                                 │
-│                  RecognizerIntent.EXTRA_LANGUAGE_MODEL,                                                │
-│                  RecognizerIntent.LANGUAGE_MODEL_FREE_FORM                                             │
-│              )                                                                                         │
-│              putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")                                        │
-│              putExtra(RecognizerIntent.EXTRA_PROMPT, "Bolo...")                                        │
+│              putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,                                           │
+│                  RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)                                            │
+│              putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN") // Hindi mix ke liye "hi-IN"           │
 │          }                                                                                             │
-│          startActivityForResult(intent, REQ_VOICE)                                                     │
-│      }                                                                                                 │
-│                                                                                                        │
-│      override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {                 │
-│          super.onActivityResult(requestCode, resultCode, data)                                         │
-│                                                                                                        │
-│          if (requestCode == REQ_VOICE && resultCode == Activity.RESULT_OK && data != null) {           │
-│              val text = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)                   │
-│                  ?.get(0) ?: ""                                                                        │
-│                                                                                                        │
-│              tv.text = text                                                                            │
-│              handleCommand(text)                                                                       │
-│          }                                                                                             │
+│          recognizer.startListening(intent)                                                             │
 │      }                                                                                                 │
 │                                                                                                        │
 │      private fun handleCommand(cmd: String) {                                                          │
-│          val c = cmd.lowercase(Locale.getDefault())                                                    │
-│          val emotion = detectEmotion(c)                                                                │
+│          val c = cmd.lowercase().trim()                                                                │
+│          emotion = detectEmotion(c)                                                                    │
 │                                                                                                        │
 │          when {                                                                                        │
-│              c.contains("gaana") || c.contains("song") -> {                                            │
-│                  val query = c.substringAfter("gaana")                                                 │
-│                      .substringAfter("song")                                                           │
-│                      .trim()                                                                           │
-│                      .ifBlank { "aaj blue" }                                                           │
-│                                                                                                        │
-│                  playYouTube(query)                                                                    │
-│                  speak("Gaana chala raha hoon: $query")                                                │
+│              c.contains("play") || c.contains("gaana") || c.contains("song") ||                        │
+│              c.contains("music") -> {                                                                  │
+│                  val q = c.replace("play", "").replace("gaana", "")                                    │
+│                      .replace("song", "").replace("music", "").replace("please", "").trim()            │
+│                  playOnYoutube(q)                                                                      │
 │              }                                                                                         │
-│                                                                                                        │
-│              c.contains("whatsapp") -> {                                                               │
-│                  val number = Regex("(\\d{10,12})").find(c)?.value ?: "919876543210"                   │
-│                  val msg = c.substringAfter("bhejo")                                                   │
-│                      .substringAfter(number)                                                           │
-│                      .trim()                                                                           │
-│                      .ifBlank { "Hi" }                                                                 │
-│                                                                                                        │
-│                  openWhatsApp(number, msg)                                                             │
-│                  speak("WhatsApp khol raha hoon. Send button dabao.")                                  │
-│              }                                                                                         │
-│                                                                                                        │
-│              c.contains("time") || c.contains("samay") -> {                                            │
-│                  val time = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())            │
-│                  speak("Abhi $time baje hain")                                                         │
-│              }                                                                                         │
-│                                                                                                        │
-│              else -> {                                                                                 │
-│                  if (emotion == "negative") {                                                          │
-│                      speak("Lagta hai tum thoda pareshan ho. Main sun raha hoon.")                     │
-│                  } else if (emotion == "positive") {                                                   │
-│                      speak("Arre badhiya! Mood accha lag raha hai.")                                   │
-│                  } else {                                                                              │
-│                      speak("Sorry, samajh nahi aaya. Dobara bolo.")                                    │
-│                  }                                                                                     │
-│              }                                                                                         │
+│              c.contains("send sms") || c.contains("text to") -> parseAndSendSms(c)                     │
+│              c.contains("whatsapp") -> parseAndSendWhatsapp(c)                                         │
+│              c.contains("time") -> respond("Time hai " +                                               │
+│                  SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date()))                      │
+│              c.contains("date") || c.contains("day") -> respond("Aaj hai " +                           │
+│                  SimpleDateFormat("EEEE, d MMMM yyyy", Locale.getDefault()).format(Date()))            │
+│              c.contains("open youtube") -> openApp("com.google.android.youtube")                       │
+│              c.contains("open whatsapp") -> openApp("com.whatsapp")                                    │
+│              c.contains("hello") || c.contains("hey") || c.contains("hi ") -> respond(greeting())      │
+│              c.contains("thank") -> respond("Hamesha yahin hoon.")                                     │
+│              else -> webSearch(c)                                                                      │
 │          }                                                                                             │
 │      }                                                                                                 │
 │                                                                                                        │
-│      private fun detectEmotion(text: String): String {                                                 │
-│          val positive = listOf("happy", "khush", "accha", "badhiya", "pyaar", "love", "great",         │
-│  "thank")                                                                                              │
-│          val negative = listOf("sad", "dukhi", "gussa", "angry", "bura", "hate", "pareshan",           │
-│  "tension")                                                                                            │
-│                                                                                                        │
-│          val score = positive.count { text.contains(it) } - negative.count { text.contains(it) }       │
-│                                                                                                        │
+│      // ---------- Emotion detection (keyword based v1) ----------                                     │
+│      private fun detectEmotion(t: String): String {                                                    │
+│          val sad = listOf("sad", "dukhi", "udas", "tired", "lonely", "depressed")                      │
+│          val angry = listOf("angry", "gussa", "hate", "annoyed", "furious")                            │
+│          val happy = listOf("happy", "khush", "excited", "great", "awesome", "love")                   │
 │          return when {                                                                                 │
-│              score > 0 -> "positive"                                                                   │
-│              score < 0 -> "negative"                                                                   │
+│              sad.any { t.contains(it) } -> "sad"                                                       │
+│              angry.any { t.contains(it) } -> "angry"                                                   │
+│              happy.any { t.contains(it) } -> "happy"                                                   │
 │              else -> "neutral"                                                                         │
 │          }                                                                                             │
 │      }                                                                                                 │
 │                                                                                                        │
-│      private fun playYouTube(query: String) {                                                          │
-│          val intent = Intent(Intent.ACTION_SEARCH).apply {                                             │
-│              setPackage("com.google.android.youtube")                                                  │
-│              putExtra("query", query)                                                                  │
-│              addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)                                                   │
+│      private fun greeting(): String = when (emotion) {                                                 │
+│          "sad" -> "Lagta hai mood off hai. Kuch play karun?",                                          │
+│          "angry" -> "Ek deep breath lo. Calming gaana laga doon?",                                     │
+│          "happy" -> "Badhiya! Aaj kya karna hai?",                                                     │
+│          else -> "Hello, batao kya karun?"                                                             │
+│      }                                                                                                 │
+│                                                                                                        │
+│      // ---------- Actions ----------                                                                  │
+│      private fun playOnYoutube(query: String) {                                                        │
+│          if (query.isBlank()) { respond("Kaunsa gaana? naam batao."); return }                         │
+│          val url = "https://www.youtube.com/results?search_query=" + Uri.encode(query)                 │
+│          startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))                                     │
+│          respond("$query laga raha hoon YouTube pe")                                                   │
+│      }                                                                                                 │
+│                                                                                                        │
+│      private fun parseAndSendSms(cmd: String) {                                                        │
+│          // bolo: "send sms to 9876543210 saying I'm on my way"                                        │
+│          val number = Regex("\\d{10}").find(cmd)?.value                                                │
+│          val msg = cmd.replace(Regex("send sms to \\d{10}"), "")                                       │
+│              .replace("saying", "").replace("that", "").trim()                                         │
+│          if (number == null || msg.isBlank()) {                                                        │
+│              respond("Aise bolo: send sms to 9876543210 saying hello"); return                         │
+│          }                                                                                             │
+│          if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS)                     │
+│              != PackageManager.PERMISSION_GRANTED) {                                                   │
+│              ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.SEND_SMS), 2)         │
+│              respond("Pehle SMS permission do"); return                                                │
 │          }                                                                                             │
 │          try {                                                                                         │
-│              startActivity(intent)                                                                     │
+│              val sms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)                             │
+│                  SmsManager.getInstance(this) else SmsManager.getDefault()                             │
+│              sms.sendTextMessage(number, null, msg, null, null)                                        │
+│              respond("$number ko message bhej diya")                                                   │
 │          } catch (e: Exception) {                                                                      │
-│              startActivity(                                                                            │
-│                  Intent(                                                                               │
-│                      Intent.ACTION_VIEW,                                                               │
-│                      Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query)}")    │
-│                  )                                                                                     │
-│              )                                                                                         │
+│              respond("SMS nahi gaya: ${e.message}")                                                    │
 │          }                                                                                             │
 │      }                                                                                                 │
 │                                                                                                        │
-│      private fun openWhatsApp(number: String, msg: String) {                                           │
-│          val url = "https://wa.me/$number?text=${Uri.encode(msg)}"                                     │
-│          val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))                                       │
+│      private fun parseAndSendWhatsapp(cmd: String) {                                                   │
+│          // bolo: "whatsapp 9876543210 I'll be late"                                                   │
+│          val number = Regex("\\d{10}").find(cmd)?.value                                                │
+│          val msg = cmd.replace(Regex("whatsapp \\d{10}"), "")                                          │
+│              .replace("message", "").replace("saying", "").trim()                                      │
+│          if (number == null) { respond("Aise bolo: whatsapp 9876543210 hello"); return }               │
+│          val url = "https://wa.me/91$number?text=" + Uri.encode(msg) // +91 = India                    │
+│          startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))                                     │
+│          respond("WhatsApp khol raha hoon. Send tu dabaye ga.")                                        │
+│      }                                                                                                 │
+│                                                                                                        │
+│      private fun openApp(pkg: String) {                                                                │
 │          try {                                                                                         │
-│              startActivity(intent)                                                                     │
-│          } catch (e: Exception) {                                                                      │
-│              speak("WhatsApp install nahi hai ya link open nahi ho raha")                              │
-│          }                                                                                             │
+│              startActivity(packageManager.getLaunchIntentForPackage(pkg)!!)                            │
+│              respond("App khol raha hoon")                                                             │
+│          } catch (e: Exception) { respond("App install nahi hai") }                                    │
 │      }                                                                                                 │
 │                                                                                                        │
-│      private fun speak(text: String) {                                                                 │
-│          tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis")                                     │
-│      }                                                                                                 │
-│                                                                                                        │
-│      override fun onDestroy() {                                                                        │
-│          tts.shutdown()                                                                                │
-│          super.onDestroy()                                                                             │
-│      }                                                                                                 │
-│  }
+│      private fun webSearch(query: String) {                                                            │
+│          startActivity(Intent(Intent.ACTION_VIEW,                                                      │
+│              Uri.parse("https://www.google.com/search?q=" + Uri.encode(query))))                       │
+│          respond("$query search kar raha hoon")                                                 
