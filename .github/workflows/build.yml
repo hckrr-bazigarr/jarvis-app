@@ -1,7 +1,27 @@
-name: Build APK
-on: push
-jobs:
-  build:
-      runs-on: ubuntu-latest
-      steps:
-           - uses: actions/checkout@v4      
+│  name: Build APK                                                                                       │
+│                                                                                                        │
+│  on:                                                                                                   │
+│    push:                                                                                               │
+│      branches: [ main ]                                                                                │
+│    workflow_dispatch:                                                                                  │
+│                                                                                                        │
+│  jobs:                                                                                                 │
+│    build:                                                                                              │
+│      runs-on: ubuntu-22.04        # pinned, taaki 26 pe migrate na ho                                  │
+│      steps:                                                                                            │
+│        - uses: actions/checkout@v4        # <-- yahi fix tha (actions, not action)                     │
+│                                                                                                        │
+│        - uses: actions/setup-java@v4                                                                   │
+│          with:                                                                                         │
+│            distribution: 'temurin'                                                                     │
+│            java-version: '17'                                                                          │
+│                                                                                                        │
+│        - uses: gradle/actions/setup-gradle@v4                                                          │
+│                                                                                                        │
+│        - name: Build debug APK                                                                         │
+│          run: chmod +x ./gradlew && ./gradlew assembleDebug                                            │
+│                                                                                                        │
+│        - uses: actions/upload-artifact@v4                                                              │
+│          with:                                                                                         │
+│            name: jarvis-apk                                                                            │
+│            path: app/build/outputs/apk/debug/app-debug.apk
