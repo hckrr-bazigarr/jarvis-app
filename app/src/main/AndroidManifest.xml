@@ -1,32 +1,38 @@
-│  <?xml version="1.0" encoding="utf-8"?>                                                                │
-│  <manifest xmlns:android="http://schemas.android.com/apk/res/android"                                  │
-│      xmlns:tools="http://schemas.android.com/tools">                                                   │
-│                                                                                                        │
-│      <uses-permission android:name="android.permission.RECORD_AUDIO" />                                │
-│      <uses-permission android:name="android.permission.SEND_SMS" />                                    │
-│      <uses-permission android:name="android.permission.INTERNET" />                                    │
-│                                                                                                        │
-│      <queries>                                                                                         │
-│          <intent>                                                                                      │
-│              <action android:name="android.intent.action.VIEW" />                                      │
-│              <data android:scheme="https" />                                                           │
-│          </intent>                                                                                     │
-│          <package android:name="com.google.android.youtube" />                                         │
-│          <package android:name="com.whatsapp" />                                                       │
-│      </queries>                                                                                        │
-│                                                                                                        │
-│      <application                                                                                      │
-│          android:allowBackup="true"                                                                    │
-│          android:label="Jarvis"                                                                        │
-│          android:theme="@style/Theme.Material3.DayNight.NoActionBar"                                   │
-│          tools:targetApi="31">                                                                         │
-│          <activity                                                                                     │
-│              android:name=".MainActivity"                                                              │
-│              android:exported="true">                                                                  │
-│              <intent-filter>                                                                           │
-│                  <action android:name="android.intent.action.MAIN" />                                  │
-│                  <category android:name="android.intent.category.LAUNCHER" />                          │
-│              </intent-filter>                                                                          │
-│          </activity>                                                                                   │
-│      </application>                                                                                    │
-│  </manifest>
+
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+
+        <package android:name="com.google.android.youtube" />
+        <package android:name="com.whatsapp" />
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:label="Jarvis"
+        android:theme="@style/Theme.Material3.DayNight.NoActionBar"
+        tools:targetApi="31">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+    </application>
+
+</manifest>
