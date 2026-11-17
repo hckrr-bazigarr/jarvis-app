@@ -11,10 +11,8 @@ name: Build APK                                                                 
 │            java-version: 17                                                                            │
 │        - uses: android-actions/setup-android@v3                                                        │
 │        - name: Build                                                                                   │
-│          run: |                                                                                        │
-│            gradle assembleDebug --no-daemon                                                            │
+│          run: gradle assembleDebug --no-daemon                                                         │
 │        - uses: actions/upload-artifact@v4                                                              │
 │          with:                                                                                         │
 │            name: jarvis-apk                                                                            │
-│            path: app/build/outputs/apk/debug/app-debug.apk                                             │
-│
+│            path: app/build/outputs/apk/debug/app-debug.apk
